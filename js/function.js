@@ -40,12 +40,17 @@
 	const initialMenu2Items = $('#menu2 > li').toArray();
 
 	const handleMobileMenus = () => {
-        const isMobile = $window.width() <= 768;
+        const isMobile = $window.width() <= 991;
         const hasSlickNav = $(".slicknav_nav").length > 0;
 
         if (isMobile && !hasSlickNav) {
             $("#menu2").children().appendTo("#menu");
-            $("#menu").slicknav({ label: "", prependTo: ".responsive-menu" });
+            $("#menu").slicknav({ label: "", prependTo: ".responsive-menu", closeOnClick: true });
+            $(document).off("click.rgSlickClose").on("click.rgSlickClose", ".slicknav_nav a", function() {
+                if ($("#menu").data("slicknav") || $(".slicknav_btn.slicknav_open").length) {
+                    $("#menu").slicknav("close");
+                }
+            });
         } else if (!isMobile && hasSlickNav) {
             $("#menu").slicknav("destroy");
 
@@ -95,6 +100,7 @@
     /* Hero Slider Start */
 	initSwiper(".hero-slider-layout .swiper", {
         ...swiperOptions,
+        spaceBetween: 0,
         autoplay: { delay: 5000 },
         pagination: { el: ".hero-pagination", clickable: true },
         navigation: {
@@ -113,31 +119,17 @@
 
     function animateActiveSlideText() {
         if (typeof gsap === 'undefined') return;
-        gsap.set(".text-anime-style-2", { clearProps: "all" });
-
-        const activeSlide = document.querySelector(".swiper-slide-active");
+        const activeSlide = document.querySelector(".hero-slider-layout .swiper-slide-active");
         if (!activeSlide) return;
         const animatedTextElements = activeSlide.querySelectorAll(".text-anime-style-2");
         if (!animatedTextElements || !animatedTextElements.length) return;
 
         animatedTextElements.forEach((element) => {
-            if (typeof SplitText === 'undefined') return;
-            try {
-                const animationSplitText = new SplitText(element, { type: "chars, words" });
-                gsap.from(animationSplitText.chars, {
-                    opacity: 0,
-                    duration: 0.4,
-                    delay: 0.1,
-                    y: 25,
-                    autoAlpha: 0,
-                    stagger: 0.025,
-                    ease: "power2.out",
-                });
-            } catch (err) {
-                // Fail-safe in case of SplitText error
-                element.style.opacity = '1';
-                element.style.visibility = 'visible';
-            }
+            gsap.killTweensOf(element);
+            gsap.fromTo(element,
+                { opacity: 0.9, y: 16 },
+                { opacity: 1, y: 0, duration: 0.5, ease: "power2.out", clearProps: "transform,opacity" }
+            );
         });
     }
     /* Hero Slider End */
@@ -213,7 +205,7 @@
 
 	/* Init Counter */
 	if ($('.counter').length) {
-		$('.counter').counterUp({ delay: 6, time: 3000 });
+		$('.counter').counterUp({ delay: 10, time: 800 });
 	}
 
 	/* Image Reveal Animation */
@@ -332,47 +324,62 @@
 		}
 	});
 
-	/* Contact Form Validation JS */
-	$("#contactForm").validator({ focus: false }).on("submit", function (event) {
-        if (!event.isDefaultPrevented()) {
-            event.preventDefault();
-            submitForm("#contactForm", "luxestay-html/form-process.html", contactFormSuccess);
-        }
+	/* Contact Form WhatsApp Submission JS */
+    $("#contactForm").on("submit", function (event) {
+        event.preventDefault();
+        const name = $(this).find('[name="name"]').val() || '';
+        const phone = $(this).find('[name="phone"]').val() || '';
+        const service = $(this).find('[name="service"]').val() || 'General Inquiry';
+        const message = $(this).find('[name="message"]').val() || '';
+        const waText = 'Hello Resolve Garden Hotel!\nNew Website Inquiry:\n' +
+            '• Name: ' + name + '\n' +
+            '• Phone: ' + phone + '\n' +
+            '• Service: ' + service + '\n' +
+            '• Details: ' + (message || 'Please contact me with more details.');
+        window.open('https://wa.me/94716240408?text=' + encodeURIComponent(waText), '_blank');
     });
-	const submitForm = (formId, url, successCallback) => {
-        const formData = $(formId).serialize();
-        $.post(url, formData, (response) => {
-			if (typeof response === "string" && response.trim() === "success") {
-				successCallback();
-			} else {
-				showMsg(false, response);
-			}
-		});
-    };
+    /* End - Contact Form WhatsApp Submission JS */
 
-	const contactFormSuccess = () => {
-        $("#contactForm")[0].reset();
-        showMsg(true, "Message Sent Successfully!");
-    };
-
-    const showMsg = (valid, msg) => {
-        $("#msgSubmit").removeClass().addClass(valid ? "text-success" : "text-danger").text(msg);
-    };
-	/* End - Contact Form Validation JS */
-
-	/* Animated Wow Js */	
+	/* Bi-directional Smooth Scroll Animation (replaces flaky WOW hidden state) */
 	try {
-		if (typeof WOW !== 'undefined') {
-			new WOW({
-				boxClass: 'wow',
-				animateClass: 'animated',
-				offset: 50,
-				mobile: true,
-				live: true
-			}).init();
+		const wowEls = document.querySelectorAll('.wow');
+		if ('IntersectionObserver' in window && wowEls.length) {
+			wowEls.forEach(el => {
+				el.style.visibility = 'visible';
+				el.classList.add('rg-scroll-reveal');
+			});
+			const revealVisible = () => {
+				const vh = window.innerHeight || document.documentElement.clientHeight;
+				wowEls.forEach(el => {
+					const r = el.getBoundingClientRect();
+					if (r.top < vh + 40 && r.bottom > -40) {
+						el.classList.add('rg-revealed');
+					}
+				});
+			};
+			const io = new IntersectionObserver((entries) => {
+				entries.forEach(entry => {
+					if (entry.isIntersecting) {
+						entry.target.classList.add('rg-revealed');
+					} else {
+						const rect = entry.boundingClientRect;
+						if (rect.top > window.innerHeight + 60 || rect.bottom < -60) {
+							entry.target.classList.remove('rg-revealed');
+						}
+					}
+				});
+			}, { threshold: 0.02, rootMargin: '40px 0px 40px 0px' });
+			wowEls.forEach(el => io.observe(el));
+			revealVisible();
+			window.addEventListener('scroll', revealVisible, { passive: true });
+		} else {
+			wowEls.forEach(el => {
+				el.style.visibility = 'visible';
+				el.style.opacity = '1';
+			});
 		}
 	} catch (e) {
-		console.warn("WOW init:", e);
+		console.warn("Scroll reveal init:", e);
 	}
 
 	/* Popup Video JS */
@@ -517,50 +524,42 @@
 
 
 	/* Section Title Scroll Animation JS */
-	if ( $( '.sisf-m-title--scroll' ).length ) {
+	if ( $( '.sisf-m-title--scroll' ).length && typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined' ) {
         gsap.registerPlugin(ScrollTrigger);
-        let sisSectionTitles = document.querySelectorAll(".sisf-m-title--scroll");
-        if (sisSectionTitles.length > 0) {
-			sisSectionTitles.forEach((container) => {
-				var text = new SplitText(container, { type: 'words, chars' });
-				text.words.forEach((word) => {
-					if (word.children.length > 0) {
-						word.children[0].classList.add("first-char");
+        document.querySelectorAll(".sisf-m-title--scroll").forEach((container) => {
+			gsap.fromTo(container,
+				{ opacity: 0.85, y: 14 },
+				{
+					opacity: 1,
+					y: 0,
+					duration: 0.55,
+					ease: "power2.out",
+					clearProps: "transform,opacity",
+					scrollTrigger: {
+						trigger: container,
+						start: "top 95%",
+						toggleActions: "play none none none"
 					}
-				});
-				gsap.fromTo(text.chars,
-					{
-						position: 'relative',
-						display: 'inline-block',
-						opacity: 0.2,
-						x: -7,
-					},
-					{
-						opacity: 1,
-						x: 0,
-						stagger: 0.1,
-						scrollTrigger: {
-							trigger: container,
-							toggleActions: "play pause reverse pause",
-							start: "top 90%",
-							end: "top 40%",
-							scrub: 0.7,
-						}
-					}
-				);
-			});
-		}
+				}
+			);
+		});
     }
 
 	// Initialize Flatpickr For Date Js
 	if (typeof flatpickr !== 'undefined') {
 		try {
+			const today = new Date();
+			const tomorrow = new Date(today);
+			tomorrow.setDate(today.getDate() + 1);
 			flatpickr("#checkin", {
-				defaultDate: "2025-05-14"
+				minDate: "today",
+				defaultDate: today,
+				dateFormat: "Y-m-d"
 			});
-
 			flatpickr("#checkout", {
-				defaultDate: "2025-05-15"
+				minDate: "today",
+				defaultDate: tomorrow,
+				dateFormat: "Y-m-d"
 			});
 		} catch(e) {}
 	}
@@ -775,7 +774,7 @@
             e.preventDefault();
             const checkinVal = document.getElementById('checkin') ? document.getElementById('checkin').value : 'Not specified';
             const checkoutVal = document.getElementById('checkout') ? document.getElementById('checkout').value : 'Not specified';
-            const roomVal = document.getElementById('rooms') ? document.getElementById('rooms').value : 'Divan Room';
+            const roomVal = document.getElementById('bookingRoomType') ? document.getElementById('bookingRoomType').value : 'Divan Room';
             const guestsVal = document.getElementById('guestsSelect') ? document.getElementById('guestsSelect').value : '1-2 Guests';
 
             const msg = 'Hello Resolve Garden Hotel!\nI would like to check availability and book:\n' +
